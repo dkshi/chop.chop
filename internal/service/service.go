@@ -40,8 +40,14 @@ func (s *Service) SendMessageCompany(msg []byte, connID int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	receiverID := s.companies[connID]
-	s.users[receiverID].Conn.WriteMessage(websocket.TextMessage, msg)
+	if receiverID, ok := s.companies[connID]; ok {
+		newMessage := []byte(s.users[connID].Username + ": " + string(msg))
+		s.users[connID].Conn.WriteMessage(websocket.TextMessage, newMessage)
+		s.users[receiverID].Conn.WriteMessage(websocket.TextMessage, newMessage)
+	} else {
+		s.users[connID].Conn.WriteMessage(websocket.TextMessage, []byte("you don't have a company!"))
+	}
+	
 }
 
 func (s *Service) BroadcastMessage(msg []byte) error {
@@ -102,7 +108,7 @@ func (s *Service) DeleteConn(connID int) {
 	delete(s.users, connID)
 }
 
-func (s *Service) WriteConns(conn *websocket.Conn, connID int) {
+func (s *Service) WriteConns(connID int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -114,7 +120,7 @@ func (s *Service) WriteConns(conn *websocket.Conn, connID int) {
 		}
 		reply += line + "\n"
 	}
-	conn.WriteMessage(websocket.TextMessage, []byte(reply))
+	s.users[connID].Conn.WriteMessage(websocket.TextMessage, []byte(reply))
 }
 
 func (s *Service) RenameConn(connID int, newName string) *chopchop.Error {

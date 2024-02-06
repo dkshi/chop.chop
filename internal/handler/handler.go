@@ -50,7 +50,7 @@ func (h *Handler) handleConnection(conn *websocket.Conn) {
 
 	msgChan := make(chan []byte)
 
-	h.srv.WriteConns(conn, connID)
+	h.srv.WriteConns(connID)
 
 	// // При новом подключении покажем пользователю все старые сообщения
 	// for _, msg := range chatMessages {
@@ -67,20 +67,22 @@ func (h *Handler) handleConnection(conn *websocket.Conn) {
 				return
 			}
 			// Делаем что-нибудь с полученным сообщением из канала
-			if len(message) >= 7 { // Почему 7? Все команды этого приложения длиной не более 7 букв.
-				strMessage := string(message)
-				if strMessage[:7] == "rename " && len(strMessage[7:]) != 0 {
-					err := h.srv.RenameConn(connID, strMessage[7:])
-					conn.WriteMessage(websocket.TextMessage, []byte(err.Message))
-					continue
-				}
-				if strMessage[:8] == "company " && len(strMessage[8:]) != 0 {
-					err := h.srv.MakeCompany(connID, strMessage[8:])
-					conn.WriteMessage(websocket.TextMessage, []byte(err.Message))
-					continue
-				}
-
+			strMessage := string(message)
+			if len(strMessage) >= 7 && strMessage[:7] == "rename " && len(strMessage[7:]) != 0 {
+				err := h.srv.RenameConn(connID, strMessage[7:])
+				conn.WriteMessage(websocket.TextMessage, []byte(err.Message))
+				continue
 			}
+			if len(strMessage) >= 8 && strMessage[:8] == "company " && len(strMessage[8:]) != 0 {
+				err := h.srv.MakeCompany(connID, strMessage[8:])
+				conn.WriteMessage(websocket.TextMessage, []byte(err.Message))
+				continue
+			}
+			if len(strMessage) >= 4 && strMessage[:4] == "list" && len(strMessage[4:]) == 0 {
+				h.srv.WriteConns(connID)
+				continue
+			}
+			h.srv.SendMessageCompany(message, connID)
 		}
 	}()
 
