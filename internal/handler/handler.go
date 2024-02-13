@@ -52,14 +52,6 @@ func (h *Handler) handleConnection(conn *websocket.Conn) {
 
 	h.srv.WriteConns(connID)
 
-	// // При новом подключении покажем пользователю все старые сообщения
-	// for _, msg := range chatMessages {
-	// 	if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
-	// 		log.Println("error loading previous messages", err)
-	// 		return
-	// 	}
-	// }
-
 	go func() {
 		for {
 			message, ok := <-msgChan
@@ -69,13 +61,11 @@ func (h *Handler) handleConnection(conn *websocket.Conn) {
 			// Делаем что-нибудь с полученным сообщением из канала
 			strMessage := string(message)
 			if len(strMessage) >= 7 && strMessage[:7] == "rename " && len(strMessage[7:]) != 0 {
-				err := h.srv.RenameConn(connID, strMessage[7:])
-				conn.WriteMessage(websocket.TextMessage, []byte(err.Message))
+				h.srv.RenameConn(connID, strMessage[7:])
 				continue
 			}
 			if len(strMessage) >= 8 && strMessage[:8] == "company " && len(strMessage[8:]) != 0 {
-				err := h.srv.MakeCompany(connID, strMessage[8:])
-				conn.WriteMessage(websocket.TextMessage, []byte(err.Message))
+				h.srv.MakeCompany(connID, strMessage[8:])
 				continue
 			}
 			if len(strMessage) >= 4 && strMessage[:4] == "list" && len(strMessage[4:]) == 0 {

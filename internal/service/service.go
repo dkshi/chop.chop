@@ -2,135 +2,122 @@ package service
 
 import (
 	"strconv"
-	"sync"
 
-	"github.com/dkshi/chopchop"
+	"github.com/dkshi/chopchop/internal/repository"
 	"github.com/gorilla/websocket"
 )
 
 type Service struct {
-	users     map[int]*chopchop.User
-	companies map[int]int
-	currID    int
-
-	mu *sync.Mutex
+	repo *repository.Repository
 }
 
-func NewService() *Service {
+func NewService(repo *repository.Repository) *Service {
 	return &Service{
-		currID:    1,
-		users:     make(map[int]*chopchop.User),
-		companies: make(map[int]int),
-		mu:        &sync.Mutex{},
+		repo: repo,
 	}
 }
 
 func (s *Service) AddConn(conn *websocket.Conn) int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	newID := s.currID
-	s.users[newID] = chopchop.NewUser(newID, "<noname>", conn)
-	s.currID++
-
-	return newID
+	return s.repo.AddUser(conn)
 }
 
+// Отправить сообщение текущую компанию
 func (s *Service) SendMessageCompany(msg []byte, connID int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	currUser, _ := s.repo.GetUser(connID)
 
-	if receiverID, ok := s.companies[connID]; ok {
-		newMessage := []byte(s.users[connID].Username + ": " + string(msg))
-		s.users[connID].Conn.WriteMessage(websocket.TextMessage, newMessage)
-		s.users[receiverID].Conn.WriteMessage(websocket.TextMessage, newMessage)
-	} else {
-		s.users[connID].Conn.WriteMessage(websocket.TextMessage, []byte("you don't have a company!"))
+	if receiverID, ok := s.repo.GetCompany(connID); ok {
+		currReceiver, _ := s.repo.GetUser(receiverID)
+
+		newMessage := []byte(currUser.Username + ": " + string(msg))
+
+		currUser.Conn.WriteMessage(websocket.TextMessage, newMessage)
+		currReceiver.Conn.WriteMessage(websocket.TextMessage, newMessage)
+		return
 	}
-	
+
+	currUser.Conn.WriteMessage(websocket.TextMessage, []byte("you don't have a company!"))
 }
 
-func (s *Service) BroadcastMessage(msg []byte) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for _, user := range s.users {
-		if err := user.Conn.WriteMessage(websocket.TextMessage, msg); err != nil {
-			return err
-		}
+// Отправить сообщение всем пользователям
+func (s *Service) BroadcastMessage(msg []byte) {
+	users := s.repo.GetUsers()
+	for _, user := range users {
+		user.Conn.WriteMessage(websocket.TextMessage, msg)
 	}
-	return nil
 }
 
-func (s *Service) MakeCompany(connID int, stringReceiverID string) *chopchop.Error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+// Создать компанию с пользователем
+func (s *Service) MakeCompany(connID int, stringReceiverID string) {
+	currUser, _ := s.repo.GetUser(connID)
 	receiverID, err := strconv.Atoi(stringReceiverID)
+	currReceiver, _ := s.repo.GetUser(receiverID)
+
 	if err != nil {
-		return chopchop.NewError(666, err.Error())
+		currUser.Conn.WriteMessage(websocket.TextMessage, []byte("incorrect format of user id"))
+		return
 	}
 
 	if connID == receiverID {
-		return chopchop.NewError(666, "error: you cannot make company with yourself")
+		currUser.Conn.WriteMessage(websocket.TextMessage, []byte("error: you cannot make company with yourself"))
+		return
 	}
 
-	if _, ok := s.users[receiverID]; !ok {
-		return chopchop.NewError(666, "error: there are no such user with id: "+strconv.Itoa(receiverID))
+	if _, ok := s.repo.GetUser(receiverID); !ok {
+		currUser.Conn.WriteMessage(websocket.TextMessage, []byte("error: there are no such user with id: "+strconv.Itoa(receiverID)))
+		return
 	}
 
-	if _, ok := s.companies[connID]; ok {
-		return chopchop.NewError(666, "error: you are already in company")
+	if _, ok := s.repo.GetCompany(connID); ok {
+		currUser.Conn.WriteMessage(websocket.TextMessage, []byte("error: you are already in company"))
+		return
 	}
 
-	if _, ok := s.companies[receiverID]; ok {
-		return chopchop.NewError(666, "error: user id: "+strconv.Itoa(receiverID)+" are already in company")
+	if _, ok := s.repo.GetCompany(receiverID); ok {
+		currUser.Conn.WriteMessage(websocket.TextMessage, []byte("error: user id: "+strconv.Itoa(receiverID)+" are already in company"))
+		return
 	}
 
-	s.companies[connID] = receiverID
-	s.companies[receiverID] = connID
-	return chopchop.NewError(0, "successfully made company with user id: "+strconv.Itoa(receiverID))
+	s.repo.AddCompany(connID, receiverID)
+	s.repo.AddCompany(receiverID, connID)
+
+	successMsg := []byte("successfully made company with user id: " + strconv.Itoa(receiverID))
+	currUser.Conn.WriteMessage(websocket.TextMessage, successMsg)
+	currReceiver.Conn.WriteMessage(websocket.TextMessage, successMsg)
 }
 
+// Разорвать компанию с пользователем
 func (s *Service) BreakCompany(connID int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	delete(s.companies, s.companies[connID])
-	delete(s.companies, connID)
+	currCompany, _ := s.repo.GetCompany(connID)
+	s.repo.DeleteCompany(currCompany)
+	s.repo.DeleteCompany(connID)
 }
 
 func (s *Service) DeleteConn(connID int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	s.BreakCompany(connID)
-	delete(s.users, connID)
+	s.repo.DeleteUser(connID)
 }
 
 func (s *Service) WriteConns(connID int) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	reply := ""
-	for id, user := range s.users {
-		line := strconv.Itoa(id) + " " + user.Username
-		if id == connID {
+	currUser, _ := s.repo.GetUser(connID)
+	currUsers := s.repo.GetUsers()
+	for _, user := range currUsers {
+		line := strconv.Itoa(user.ID) + " " + user.Username
+		if user.ID == connID {
 			line += " (you)"
 		}
 		reply += line + "\n"
 	}
-	s.users[connID].Conn.WriteMessage(websocket.TextMessage, []byte(reply))
+	currUser.Conn.WriteMessage(websocket.TextMessage, []byte(reply))
 }
 
-func (s *Service) RenameConn(connID int, newName string) *chopchop.Error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
+func (s *Service) RenameConn(connID int, newName string) {
+	currUser, _ := s.repo.GetUser(connID)
 	if len(newName) > 24 {
-		return chopchop.NewError(666, "error: your new name is too long")
+		currUser.Conn.WriteMessage(websocket.TextMessage, []byte("error: your new name is too long"))
+		return
 	}
 
-	s.users[connID].Rename(newName)
-	return chopchop.NewError(0, "name was changed succesfully")
+	currUser.Username = newName
+	currUser.Conn.WriteMessage(websocket.TextMessage, []byte("name was changed successfully"))
 }

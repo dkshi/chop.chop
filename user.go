@@ -15,7 +15,3 @@ func NewUser(id int, name string, conn *websocket.Conn) *User {
 		Conn:     conn,
 	}
 }
-
-func (u *User) Rename(name string) {
-	u.Username = name
-}
