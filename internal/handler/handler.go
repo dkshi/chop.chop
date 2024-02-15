@@ -35,6 +35,9 @@ func (h *Handler) InitRoutes() *mux.Router {
 
 func (h *Handler) ChatHandler(w http.ResponseWriter, r *http.Request) {
 	// Обновляем соединение до веб-сокета
+	upgrader.CheckOrigin = func(r *http.Request) bool {
+		return true
+	}
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("error upgrading to websocket:", err)
@@ -70,6 +73,10 @@ func (h *Handler) handleConnection(conn *websocket.Conn) {
 			}
 			if len(strMessage) >= 4 && strMessage[:4] == "list" && len(strMessage[4:]) == 0 {
 				h.srv.WriteConns(connID)
+				continue
+			}
+			if len(strMessage) >= 5 && strMessage[:5] == "leave" && len(strMessage[5:]) == 0 {
+				h.srv.BreakCompany(connID)
 				continue
 			}
 			h.srv.SendMessageCompany(message, connID)
