@@ -1,5 +1,6 @@
 # chop.chop: websocket chat server
 
+Chat with the ability to create private rooms for two users.
 You can get local chat client from <a href="https://github.com/dkshi/ccclient">this repository</a> or write it by yourself!
 
 **Chat commands:** 
