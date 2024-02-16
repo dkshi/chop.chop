@@ -108,6 +108,14 @@ func (s *Service) WriteConns(connID int) {
 	currUser.Conn.WriteMessage(websocket.TextMessage, []byte(reply))
 }
 
+func (s *Service) WriteCmdList(connID int) {
+	commands := "help - show command list\n" +
+		"list - show public user list\n" + "rename {name} - set new name in public users list\n" +
+		"company {id} - make private chat with other user\n" + "leave - disconnect from private chat\n"
+	currUser, _ := s.repo.GetUser(connID)
+	currUser.Conn.WriteMessage(websocket.TextMessage, []byte(commands))
+}
+
 func (s *Service) RenameConn(connID int, newName string) {
 	currUser, _ := s.repo.GetUser(connID)
 	if len(newName) > 24 {

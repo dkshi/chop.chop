@@ -79,6 +79,10 @@ func (h *Handler) handleConnection(conn *websocket.Conn) {
 				h.srv.BreakCompany(connID)
 				continue
 			}
+			if len(strMessage) >= 4 && strMessage[:4] == "help" && len(strMessage[4:]) == 0 {
+				h.srv.WriteCmdList(connID)
+				continue
+			}
 			h.srv.SendMessageCompany(message, connID)
 		}
 	}()
