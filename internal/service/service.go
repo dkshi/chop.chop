@@ -28,10 +28,8 @@ func (s *Service) SendMessageCompany(msg []byte, connID int) {
 	if receiverID, ok := s.repo.GetCompany(connID); ok {
 		currReceiver, _ := s.repo.GetUser(receiverID)
 
-		newMessage := []byte(currUser.Username + ": " + string(msg))
-
-		currUser.Conn.WriteMessage(websocket.TextMessage, newMessage)
-		currReceiver.Conn.WriteMessage(websocket.TextMessage, newMessage)
+		currUser.Conn.WriteMessage(websocket.TextMessage, []byte("you: "+string(msg)))
+		currReceiver.Conn.WriteMessage(websocket.TextMessage, []byte(currUser.Username+": "+string(msg)))
 		return
 	}
 
@@ -80,9 +78,8 @@ func (s *Service) MakeCompany(connID int, stringReceiverID string) {
 	s.repo.AddCompany(connID, receiverID)
 	s.repo.AddCompany(receiverID, connID)
 
-	successMsg := []byte("successfully made company with user id: " + strconv.Itoa(receiverID))
-	currUser.Conn.WriteMessage(websocket.TextMessage, successMsg)
-	currReceiver.Conn.WriteMessage(websocket.TextMessage, successMsg)
+	currUser.Conn.WriteMessage(websocket.TextMessage, []byte("successfully made company with user id: "+strconv.Itoa(receiverID)))
+	currReceiver.Conn.WriteMessage(websocket.TextMessage, []byte("successfully made company with user id: "+strconv.Itoa(connID)))
 }
 
 // Разорвать компанию с пользователем
