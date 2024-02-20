@@ -2,6 +2,7 @@ package service
 
 import (
 	"strconv"
+	"strings"
 
 	"github.com/dkshi/chopchop/internal/repository"
 	"github.com/gorilla/websocket"
@@ -95,7 +96,7 @@ func (s *Service) DeleteConn(connID int) {
 }
 
 func (s *Service) WriteConns(connID int) {
-	reply := ""
+	reply := strings.Builder{}
 	currUser, _ := s.repo.GetUser(connID)
 	currUsers := s.repo.GetUsers()
 	for _, user := range currUsers {
@@ -103,9 +104,9 @@ func (s *Service) WriteConns(connID int) {
 		if user.ID == connID {
 			line += " (you)"
 		}
-		reply += line + "\n"
+		reply.Write([]byte(line + "\n"))
 	}
-	currUser.Conn.WriteMessage(websocket.TextMessage, []byte(reply))
+	currUser.Conn.WriteMessage(websocket.TextMessage, []byte(reply.String()))
 }
 
 func (s *Service) WriteCmdList(connID int) {
